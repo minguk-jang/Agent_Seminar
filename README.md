@@ -371,7 +371,136 @@ print(result["new_itinerary"])
 2. 수정된 선호 정보를 기반으로 새로운 일정 추천 생성
 3. 결과를 다시 사용자에게 제시
 
+
 ---
+
+## 4. 도구로서의 코드 생성
+
+코드 생성 에이전트는 AI 모델을 활용해 코드를 작성하고 실행함으로써 복잡한 문제를 해결하거나 작업을 자동화합니다.
+
+---
+
+### 코드 생성 에이전트란?
+
+코드 생성 에이전트는 생성형 AI 모델을 사용하여 코드를 작성하고 실행합니다. 이러한 에이전트는 다양한 프로그래밍 언어로 문제를 해결하고, 작업을 자동화하며, 분석 통찰을 제공합니다.
+
+---
+
+### 실용적인 응용 예시
+
+* **자동 코드 생성**: 데이터 분석, 웹 스크래핑, 머신러닝 등을 위한 코드 자동 작성
+* **SQL 기반 RAG**: SQL 쿼리를 사용하여 데이터베이스로부터 데이터를 검색 및 조작
+* **문제 해결**: 최적화, 분석 등 특정 문제 해결을 위한 코드 작성 및 실행
+
+---
+
+### 예시: 데이터 분석을 위한 코드 생성 에이전트
+
+**작업**: 데이터셋을 분석하여 경향과 패턴을 파악
+**단계**:
+
+1. 데이터셋 로딩
+2. SQL 쿼리 생성
+3. 쿼리 실행 및 결과 추출
+4. 시각화 및 인사이트 도출
+
+---
+
+### 예시: Travel Agent에서 코드 생성 에이전트 구현
+
+이번에는 Travel Agent가 다음과 같은 코드를 자동으로 생성하고 실행한다고 가정합니다:
+
+* 여행 옵션 검색
+* 결과 필터링
+* 일정을 구성
+* 사용자 피드백에 따라 코드를 수정하여 재실행
+
+---
+
+### LangGraph 기반 코드 생성 에이전트 흐름 예시
+
+아래 예시는 LangGraph를 활용하여 사용자의 선호도를 기반으로 코드를 생성하고 실행하며, 피드백을 반영하여 다시 생성하는 전체 흐름입니다.
+
+```python
+from langgraph.graph import StateGraph, END
+from langchain_core.runnables import RunnableLambda
+import ast
+
+# 상태 예시
+initial_state = {
+    "preferences": {
+        "destination": "Paris",
+        "dates": "2025-04-01 to 2025-04-10",
+        "budget": "moderate",
+        "interests": ["museums", "cuisine"]
+    },
+    "feedback": {
+        "liked": ["Louvre Museum"],
+        "disliked": ["Eiffel Tower (too crowded)"]
+    }
+}
+
+# 1단계: 피드백 기반으로 선호 조정
+def adjust_preferences(state):
+    prefs = state["preferences"].copy()
+    feedback = state["feedback"]
+    if "liked" in feedback:
+        prefs["favorites"] = feedback["liked"]
+    if "disliked" in feedback:
+        prefs["avoid"] = feedback["disliked"]
+    state["adjusted_preferences"] = prefs
+    return state
+
+# 2단계: 사용자 선호에 따라 파이썬 코드 생성
+def generate_python_code(state):
+    prefs = state["adjusted_preferences"]
+    code = f"""
+def fetch_itinerary():
+    flights = "Flights to {prefs['destination']}"
+    hotels = "Hotels within {prefs['budget']} budget"
+    attractions = "Exclude: {prefs.get('avoid', [])}"
+    return {{
+        "flights": flights,
+        "hotels": hotels,
+        "attractions": attractions
+    }}
+"""
+    state["generated_code"] = code
+    return state
+
+# 3단계: 생성된 코드를 실행
+def execute_generated_code(state):
+    local_vars = {}
+    exec(state["generated_code"], {}, local_vars)
+    state["itinerary"] = local_vars["fetch_itinerary"]()
+    return state
+
+# LangGraph 정의
+graph = StateGraph()
+graph.add_node("AdjustPreferences", RunnableLambda(adjust_preferences))
+graph.add_node("GenerateCode", RunnableLambda(generate_python_code))
+graph.add_node("ExecuteCode", RunnableLambda(execute_generated_code))
+
+graph.set_entry_point("AdjustPreferences")
+graph.add_edge("AdjustPreferences", "GenerateCode")
+graph.add_edge("GenerateCode", "ExecuteCode")
+graph.set_finish_point("ExecuteCode", END)
+
+compiled_graph = graph.compile()
+result = compiled_graph.invoke(initial_state)
+
+print("✈️ 최종 생성된 여행 일정:")
+print(result["itinerary"])
+```
+
+---
+
+### 이 예시의 구성 요소
+
+* **`adjust_preferences`**: 사용자 피드백에 따라 선호를 수정합니다.
+* **`generate_python_code`**: 수정된 선호를 기반으로 코드(파이썬 함수)를 문자열로 생성합니다.
+* **`execute_generated_code`**: 생성된 파이썬 코드를 실행하여 일정을 도출합니다.
+* 전체 흐름은 LangGraph를 통해 자동으로 연결되고 상태를 유지합니다.
 
 ---
 
